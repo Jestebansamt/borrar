@@ -13,7 +13,11 @@ void search(SearchCriteria criteria, Song *results, int *out_found) {
         return;
     }
 
-    // Calcular hash del título (clave principal)
+    // Convertir criterios a minúsculas (para búsqueda case-insensitive)
+    to_lower(criteria.titulo);
+    to_lower(criteria.artist);
+
+    // Calcular hash del título (ya en minúsculas)
     unsigned long hash = djb2_hash(criteria.titulo) % TABLE_SIZE;
     long bucket_offset = hash * sizeof(long);
     long current_offset;
@@ -31,12 +35,13 @@ void search(SearchCriteria criteria, Song *results, int *out_found) {
     char *buffer = malloc(BUFFER_SIZE * sizeof(char));
     if (!buffer) {
         perror("Error allocating memory");
+        fclose(f_index);
+        fclose(f_nodes);
+        fclose(csv);
         return;
     }
 
     int found = 0;
-    to_lower(criteria.titulo);
-    to_lower(criteria.artist);
 
     // Recorrer lista enlazada del bucket
     while (current_offset != -1) {
@@ -49,18 +54,20 @@ void search(SearchCriteria criteria, Song *results, int *out_found) {
         }
 
         char node_key_lower[MAX_TITLE_SIZE];
-        strncpy(node_key_lower, node.key, MAX_TITLE_SIZE);
+        strncpy(node_key_lower, node.key, MAX_TITLE_SIZE - 1);
+        node_key_lower[MAX_TITLE_SIZE - 1] = '\0';
         to_lower(node_key_lower);
 
         // Verificar si la clave coincide con el título
-        if (strncmp(node_key_lower, criteria.titulo, MAX_TITLE_SIZE) == 0) {
+        if (strcmp(node_key_lower, criteria.titulo) == 0) {
             // Leer registro del CSV
             fseek(csv, node.data_offset, SEEK_SET);
             if (fgets(buffer, BUFFER_SIZE, csv)) {
                 Song song = parse_song(buffer);
 
                 char artist_lower[MAX_ARTIST_SIZE];
-                strncpy(artist_lower, song.artist, MAX_ARTIST_SIZE);
+                strncpy(artist_lower, song.artist, MAX_ARTIST_SIZE - 1);
+                artist_lower[MAX_ARTIST_SIZE - 1] = '\0';
                 to_lower(artist_lower);
 
                 int matches = 1;
@@ -156,7 +163,7 @@ int main() {
                     exit(EXIT_FAILURE);
                 }
 
-                // Log para ver resultados en consola del servidor
+                // Log para depuración
                 printf("[%d] %s - %s (%d) | Views: %d\n",
                        i + 1, s->titulo, s->artist, s->year, s->views);
             }
