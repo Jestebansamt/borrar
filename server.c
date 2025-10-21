@@ -13,10 +13,16 @@ void search(SearchCriteria criteria, Song *results, int *out_found) {
         return;
     }
 
+    // Convertir criterios a minúsculas (para búsqueda case-insensitive)
+    to_lower(criteria.titulo);
+    to_lower(criteria.artist);
+
+    // Calcular hash del título (ya en minúsculas)
     unsigned long hash = djb2_hash(criteria.titulo) % TABLE_SIZE;
     long bucket_offset = hash * sizeof(long);
     long current_offset;
 
+    // Obtener nodo inicial del bucket
     fseek(f_index, bucket_offset, SEEK_SET);
     if (fread(&current_offset, sizeof(long), 1, f_index) != 1) {
         perror("Error reading index file");
@@ -26,7 +32,7 @@ void search(SearchCriteria criteria, Song *results, int *out_found) {
         return;
     }
 
-    char *buffer = malloc(BUFFER_SIZE);
+    char *buffer = malloc(BUFFER_SIZE * sizeof(char));
     if (!buffer) {
         perror("Error allocating memory");
         fclose(f_index);
@@ -37,6 +43,7 @@ void search(SearchCriteria criteria, Song *results, int *out_found) {
 
     int found = 0;
 
+    // Recorrer lista enlazada del bucket
     while (current_offset != -1) {
         IndexNode node;
         fseek(f_nodes, current_offset, SEEK_SET);
@@ -46,19 +53,33 @@ void search(SearchCriteria criteria, Song *results, int *out_found) {
             break;
         }
 
-        // Ya que node.key está en minúsculas desde la creación del índice
-        if (strcmp(node.key, criteria.titulo) == 0) {
+        char node_key_lower[MAX_TITLE_SIZE];
+        strncpy(node_key_lower, node.key, MAX_TITLE_SIZE - 1);
+        node_key_lower[MAX_TITLE_SIZE - 1] = '\0';
+        to_lower(node_key_lower);
+
+        // Verificar si la clave coincide con el título
+        if (strcmp(node_key_lower, criteria.titulo) == 0) {
+            // Leer registro del CSV
             fseek(csv, node.data_offset, SEEK_SET);
             if (fgets(buffer, BUFFER_SIZE, csv)) {
                 Song song = parse_song(buffer);
 
+                char artist_lower[MAX_ARTIST_SIZE];
+                strncpy(artist_lower, song.artist, MAX_ARTIST_SIZE - 1);
+                artist_lower[MAX_ARTIST_SIZE - 1] = '\0';
+                to_lower(artist_lower);
+
                 int matches = 1;
-                if (strlen(criteria.artist) > 0)
-                    matches = (strcmp(song.artist, criteria.artist) == 0);
+
+                // Filtrar por artista si fue ingresado
+                if (strlen(criteria.artist) > 0) {
+                    matches = matches && (strcmp(artist_lower, criteria.artist) == 0);
+                }
 
                 if (matches) {
                     results[found++] = song;
-                    if (found >= MAX_RESULTS) break;
+                    if (found >= MAX_RESULTS) break; // límite de resultados
                 }
             }
         }
@@ -81,6 +102,7 @@ int main() {
     printf("      MUSIC SEARCH SERVER ACTIVE\n");
     printf("========================================\n");
 
+    // Crear FIFOs si no existen
     mkfifo(FIFO_C2S, 0666);
     mkfifo(FIFO_S2C, 0666);
 
@@ -90,7 +112,9 @@ int main() {
             perror("Error allocating memory");
             return 1;
         }
+        int found;
 
+        // Esperar solicitud del cliente
         int rfd = open(FIFO_C2S, O_RDONLY);
         if (rfd == -1) {
             perror("Error opening FIFO_C2S");
@@ -105,9 +129,10 @@ int main() {
         }
         close(rfd);
 
-        int found;
+        // Ejecutar búsqueda
         search(criteria, results, &found);
 
+        // Responder al cliente
         int wfd = open(FIFO_S2C, O_WRONLY);
         if (wfd == -1) {
             perror("Error opening FIFO_S2C");
@@ -124,6 +149,7 @@ int main() {
             printf("========================================\n");
             printf("  No se encontraron coincidencias.\n");
             printf("========================================\n");
+            close(wfd);
         } else {
             printf("========================================\n");
             printf("  %d canciones encontradas.\n", found);
@@ -137,12 +163,12 @@ int main() {
                     exit(EXIT_FAILURE);
                 }
 
+                // Log para depuración
                 printf("[%d] %s - %s (%d) | Views: %d\n",
                        i + 1, s->titulo, s->artist, s->year, s->views);
             }
+            close(wfd);
         }
-
-        close(wfd);
         free(results);
     }
 
