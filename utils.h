@@ -85,6 +85,7 @@ static inline Song parse_song(const char *line) {
     // 1. titulo
     strncpy(song.titulo, token ? token : "", MAX_TITLE_SIZE - 1);
     song.titulo[MAX_TITLE_SIZE - 1] = '\0';
+    to_lower(song.titulo);
 
     // 2. tag
     token = strtok(NULL, ",");
@@ -93,6 +94,7 @@ static inline Song parse_song(const char *line) {
     // 3. artist
     token = strtok(NULL, ",");
     strncpy(song.artist, token ? token : "", MAX_ARTIST_SIZE - 1);
+    to_lower(song.artist);
 
     // 4. year
     token = strtok(NULL, ",");
