@@ -13,10 +13,6 @@ void search(SearchCriteria criteria, Song *results, int *out_found) {
         return;
     }
 
-    // Convertir criterios a minúsculas (para búsqueda case-insensitive)
-    to_lower(criteria.titulo);
-    to_lower(criteria.artist);
-
     // Calcular hash del título (ya en minúsculas)
     unsigned long hash = djb2_hash(criteria.titulo) % TABLE_SIZE;
     long bucket_offset = hash * sizeof(long);
