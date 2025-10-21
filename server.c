@@ -1,13 +1,5 @@
 #include "utils.h"
 
-
-void to_lower(char *s) {
-    for (int i = 0; s[i]; i++) {
-        s[i] = tolower((unsigned char)s[i]);
-    }
-}
-
-
 // --------------------------------------------
 // Realiza la búsqueda según los criterios recibidos
 // --------------------------------------------
