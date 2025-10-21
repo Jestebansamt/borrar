@@ -70,10 +70,6 @@ static inline void to_lower(char *str) {
         *str = tolower((unsigned char)*str);
 }
 
-static inline void trim_newline(char *s) {
-    s[strcspn(s, "\n")] = '\0';
-}
-
 static inline Song parse_song(const char *line) {
     Song song;
     char *buffer = strdup(line);
@@ -82,8 +78,6 @@ static inline Song parse_song(const char *line) {
     // 1. titulo
     strncpy(song.titulo, token ? token : "", MAX_TITLE_SIZE - 1);
     song.titulo[MAX_TITLE_SIZE - 1] = '\0';
-    trim_newline(song.titulo);
-    to_lower(song.titulo);
 
     // 2. tag
     token = strtok(NULL, ",");
@@ -93,8 +87,6 @@ static inline Song parse_song(const char *line) {
     token = strtok(NULL, ",");
     strncpy(song.artist, token ? token : "", MAX_ARTIST_SIZE - 1);
     song.artist[MAX_ARTIST_SIZE - 1] = '\0';
-    trim_newline(song.artist);
-    to_lower(song.artist);
 
     // 4. year
     token = strtok(NULL, ",");
