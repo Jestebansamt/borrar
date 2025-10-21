@@ -13,23 +13,21 @@
 #define FIFO_C2S "/tmp/fifo_c2s"  // Cliente → Servidor
 #define FIFO_S2C "/tmp/fifo_s2c"  // Servidor → Cliente
 
-// Configuración de tabla hash y buffers
 #define TABLE_SIZE 20000003       // Número primo grande
 #define BUFFER_SIZE 1024
 
-// Tamaños máximos de campos
 #define MAX_TITLE_SIZE 128
 #define MAX_ARTIST_SIZE 128
 #define MAX_TAG_SIZE 64
 #define MAX_FEATURES_SIZE 128
 #define MAX_LYRICS_SIZE 512
 #define MAX_LANG_SIZE 16
+#define MAX_RESULTS 128           // para límite de búsqueda
 
 // ---------------------------
 // 🔹 ESTRUCTURAS DE DATOS
 // ---------------------------
 
-// Registro del dataset
 typedef struct {
     char titulo[MAX_TITLE_SIZE];
     char tag[MAX_TAG_SIZE];
@@ -44,39 +42,38 @@ typedef struct {
     char language[MAX_LANG_SIZE];
 } Song;
 
-// Criterios de búsqueda
 typedef struct {
     char titulo[MAX_TITLE_SIZE];
     char artist[MAX_ARTIST_SIZE];
 } SearchCriteria;
 
-// Nodo del índice hash
 typedef struct {
-    char key[MAX_TITLE_SIZE];   // título
-    long data_offset;           // posición del registro en archivo
-    long next_offset;           // colisión (0 si no hay)
+    char key[MAX_TITLE_SIZE];
+    long data_offset;
+    long next_offset;
 } IndexNode;
 
 // ---------------------------
 // 🔹 FUNCIONES AUXILIARES
 // ---------------------------
 
-// Hash DJB2 clásico
 static inline unsigned long djb2_hash(const char *str) {
     unsigned long hash = 5381;
     int c;
     while ((c = *str++))
-        hash = ((hash << 5) + hash) + c; // hash * 33 + c
+        hash = ((hash << 5) + hash) + c;
     return hash;
 }
 
-// Convertir string a minúsculas (útil para búsquedas insensibles)
 static inline void to_lower(char *str) {
     for (; *str; ++str)
         *str = tolower((unsigned char)*str);
 }
 
-// Parsear una línea CSV en un struct Song
+static inline void trim_newline(char *s) {
+    s[strcspn(s, "\n")] = '\0';
+}
+
 static inline Song parse_song(const char *line) {
     Song song;
     char *buffer = strdup(line);
@@ -85,6 +82,7 @@ static inline Song parse_song(const char *line) {
     // 1. titulo
     strncpy(song.titulo, token ? token : "", MAX_TITLE_SIZE - 1);
     song.titulo[MAX_TITLE_SIZE - 1] = '\0';
+    trim_newline(song.titulo);
     to_lower(song.titulo);
 
     // 2. tag
@@ -94,6 +92,8 @@ static inline Song parse_song(const char *line) {
     // 3. artist
     token = strtok(NULL, ",");
     strncpy(song.artist, token ? token : "", MAX_ARTIST_SIZE - 1);
+    song.artist[MAX_ARTIST_SIZE - 1] = '\0';
+    trim_newline(song.artist);
     to_lower(song.artist);
 
     // 4. year
@@ -116,17 +116,16 @@ static inline Song parse_song(const char *line) {
     token = strtok(NULL, ",");
     song.id = token ? atoi(token) : 0;
 
-    // 9. language_cld3
+    // 9–11. idiomas
     token = strtok(NULL, ",");
     strncpy(song.language_cld3, token ? token : "", MAX_LANG_SIZE - 1);
-
-    // 10. language_ft
     token = strtok(NULL, ",");
     strncpy(song.language_ft, token ? token : "", MAX_LANG_SIZE - 1);
-
-    // 11. language
     token = strtok(NULL, ",\n");
     strncpy(song.language, token ? token : "", MAX_LANG_SIZE - 1);
+    song.language[MAX_LANG_SIZE - 1] = '\0';
+    trim_newline(song.language);
+    to_lower(song.language);
 
     free(buffer);
     return song;
